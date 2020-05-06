@@ -13,6 +13,7 @@ setup(
         'h5py',
         'shapely',
         'numpy',
-        'pillow'
+        'pillow',
+        'cytomine-python-client'
     ],
 )

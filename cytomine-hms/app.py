@@ -16,18 +16,26 @@
 
 import json
 from io import BytesIO
+from threading import Thread
 
 import h5py
 import numpy as np
 from PIL import Image
+from colors import colors
+from cytomine import Cytomine
+from cytomine.models import UploadedFile, AbstractImage, AbstractSliceCollection
 from shapely import wkt
+from shapely.geometry import Point
 
+from .writer import create_hdf5
 from .reader import prepare_geometry, prepare_slices, get_mask, extract_profile, get_cartesian_indexes, \
     get_projection, get_bounds
 from .utils import NumpyEncoder
 from flask import Flask, abort, request, send_file
 
 app = Flask(__name__)
+app.config.from_object('cytomine-hms.config.Config')
+app.logger.setLevel(logging.INFO)
 
 
 @app.route('/')
@@ -35,7 +43,26 @@ def hello_world():
     return 'Hello World!'
 
 
-@app.route('/profile.json')
+@app.route('/profile.json', methods=['POST'])
+def make_hdf5():
+    uploaded_file_id = request.form['uploadedFile']
+    image_id = request.form['image']
+    companion_file_id = request.form['companionFile']
+
+    Cytomine.connect(app.config['CYTOMINE_HOST'], app.config['CYTOMINE_PUBLIC_KEY'], app.config['CYTOMINE_PRIVATE_KEY'])
+    uploaded_file = UploadedFile().fetch(uploaded_file_id)
+    image = AbstractImage().fetch(image_id)
+    slices = AbstractSliceCollection().fetch_with_filter("abstractimage", image.id)
+
+    n_workers = 4  # TODO
+    thread = Thread(target=create_hdf5, args=(uploaded_file, image, slices, n_workers))
+    thread.daemon = True
+    thread.start()
+
+    return {'started': True}
+
+
+@app.route('/profile.json', methods=['GET'])
 def get_profile():
     path = request.args.get('path')
     geometry = wkt.loads(request.args.get('geometry'))
