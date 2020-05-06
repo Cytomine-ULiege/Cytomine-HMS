@@ -66,8 +66,8 @@ def make_hdf5():
 
 @app.route('/profile.json', methods=['GET'])
 def get_profile():
-    path = request.args.get('path')
-    geometry = wkt.loads(request.args.get('geometry'))
+    path = request.args.get('fif', type=str)
+    geometry = wkt.loads(request.args.get('location', type=str))
     if path is None or geometry is None:
         abort(400)
 
@@ -96,8 +96,8 @@ def get_profile():
 
 @app.route('/profile/stats.json')
 def get_profile_stats():
-    path = request.args.get('path')
-    geometry = wkt.loads(request.args.get('geometry'))
+    path = request.args.get('fif', type=str)
+    geometry = wkt.loads(request.args.get('location', type=str))
     if path is None or geometry is None:
         abort(400)
 
@@ -146,8 +146,8 @@ def get_profile_average_projection(format):
 
 
 def _get_profile_image_projection(proj_func, format):
-    path = request.args.get('path')
-    geometry = wkt.loads(request.args.get('geometry'))
+    path = request.args.get('fif', type=str)
+    geometry = wkt.loads(request.args.get('location', type=str))
     if path is None or geometry is None:
         abort(400)
 
