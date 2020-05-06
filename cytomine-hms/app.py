@@ -15,6 +15,8 @@
 # * limitations under the License.
 
 import json
+import logging
+import time
 from io import BytesIO
 from threading import Thread
 
@@ -31,7 +33,7 @@ from .writer import create_hdf5
 from .reader import prepare_geometry, prepare_slices, get_mask, extract_profile, get_cartesian_indexes, \
     get_projection, get_bounds
 from .utils import NumpyEncoder
-from flask import Flask, abort, request, send_file
+from flask import Flask, abort, request, send_file, g
 
 app = Flask(__name__)
 app.config.from_object('cytomine-hms.config.Config')
@@ -172,6 +174,37 @@ def _get_profile_image_projection(proj_func, format):
     img_io.seek(0)
     mime_type = "image/jpeg" if format == "jpg" else "image/png"
     return send_file(img_io, mimetype=mime_type)
+
+
+@app.before_request
+def start_timer():
+    g.start = time.time()
+
+
+@app.after_request
+def log_request(response):
+    now = time.time()
+    duration = round(now - g.start, 4)
+    host = request.host.split(':', 1)[0]
+    args = dict(request.args)
+
+    log_params = [
+        ('method', request.method, 'magenta'),
+        ('path', request.path, 'blue'),
+        ('status', response.status_code, 'yellow'),
+        ('duration', duration, 'green'),
+        ('host', host, 'red'),
+        ('params', args, 'blue')
+    ]
+
+    parts = []
+    for name, value, color in log_params:
+        part = colors.color("{}={}".format(name, value), fg=color)
+        parts.append(part)
+    line = " ".join(parts)
+    app.logger.info(line)
+
+    return response
 
 
 if __name__ == '__main__':
