@@ -91,6 +91,9 @@ def get_profile():
             "profile": data
         })
 
+    if type(geometry) == Point and len(response) == 1:
+        response = response[0]
+
     return json.dumps(response, cls=NumpyEncoder, check_circular=False)
 
 
