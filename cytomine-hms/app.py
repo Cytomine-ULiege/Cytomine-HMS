@@ -97,7 +97,7 @@ def get_profile():
     return json.dumps(response, cls=NumpyEncoder, check_circular=False)
 
 
-@app.route('/profile/stats.json')
+@app.route('/profile/projections.json')
 def get_profile_stats():
     path = request.args.get('fif', type=str)
     geometry = wkt.loads(request.args.get('location', type=str))
