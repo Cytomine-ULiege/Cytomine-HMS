@@ -14,6 +14,7 @@ setup(
         'shapely',
         'numpy',
         'pillow',
-        'cytomine-python-client'
+        'cytomine-python-client',
+        'ansicolors'
     ],
 )
