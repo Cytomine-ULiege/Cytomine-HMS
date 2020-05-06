@@ -45,7 +45,7 @@ def hello_world():
     return 'Hello World!'
 
 
-@app.route('/profile.json', methods=['POST'])
+@app.route('/hdf5.json', methods=['POST'])
 def make_hdf5():
     uploaded_file_id = request.form['uploadedFile']
     image_id = request.form['image']
@@ -64,15 +64,15 @@ def make_hdf5():
     return {'started': True}
 
 
-@app.route('/profile.json', methods=['GET'])
+@app.route('/profile.json', methods=['GET', 'POST'])
 def get_profile():
-    path = request.args.get('fif', type=str)
-    geometry = wkt.loads(request.args.get('location', type=str))
+    path = _get_parameter()('fif', type=str)
+    geometry = wkt.loads(_get_parameter()('location', type=str))
     if path is None or geometry is None:
         abort(400)
 
-    min_slice = request.args.get('minSlice', None, type=int)
-    max_slice = request.args.get('maxSlice', None, type=int)
+    min_slice = _get_parameter()('minSlice', None, type=int)
+    max_slice = _get_parameter()('maxSlice', None, type=int)
 
     hdf5 = h5py.File(path, 'r')
     geometry = prepare_geometry(hdf5, geometry)
@@ -97,15 +97,15 @@ def get_profile():
     return json.dumps(response, cls=NumpyEncoder, check_circular=False)
 
 
-@app.route('/profile/projections.json')
+@app.route('/profile/projections.json', methods=['GET', 'POST'])
 def get_profile_stats():
-    path = request.args.get('fif', type=str)
-    geometry = wkt.loads(request.args.get('location', type=str))
+    path = _get_parameter()('fif', type=str)
+    geometry = wkt.loads(_get_parameter()('location', type=str))
     if path is None or geometry is None:
         abort(400)
 
-    min_slice = request.args.get('minSlice', None, type=int)
-    max_slice = request.args.get('maxSlice', None, type=int)
+    min_slice = _get_parameter()('minSlice', None, type=int)
+    max_slice = _get_parameter()('maxSlice', None, type=int)
 
     hdf5 = h5py.File(path, 'r')
     geometry = prepare_geometry(hdf5, geometry)
@@ -133,29 +133,29 @@ def get_profile_stats():
     return json.dumps(response, cls=NumpyEncoder, check_circular=False)
 
 
-@app.route('/profile/min-projection.<format>')
+@app.route('/profile/min-projection.<format>', methods=['GET', 'POST'])
 def get_profile_min_projection(format):
     return _get_profile_image_projection(np.min, format)
 
 
-@app.route('/profile/max-projection.<format>')
+@app.route('/profile/max-projection.<format>', methods=['GET', 'POST'])
 def get_profile_max_projection(format):
     return _get_profile_image_projection(np.max, format)
 
 
-@app.route('/profile/average-projection.<format>')
+@app.route('/profile/average-projection.<format>', methods=['GET', 'POST'])
 def get_profile_average_projection(format):
     return _get_profile_image_projection(np.mean, format)
 
 
 def _get_profile_image_projection(proj_func, format):
-    path = request.args.get('fif', type=str)
-    geometry = wkt.loads(request.args.get('location', type=str))
+    path = _get_parameter()('fif', type=str)
+    geometry = wkt.loads(_get_parameter()('location', type=str))
     if path is None or geometry is None:
         abort(400)
 
-    min_slice = request.args.get('minSlice', None, type=int)
-    max_slice = request.args.get('maxSlice', None, type=int)
+    min_slice = _get_parameter()('minSlice', None, type=int)
+    max_slice = _get_parameter()('maxSlice', None, type=int)
 
     hdf5 = h5py.File(path, 'r')
     geometry = prepare_geometry(hdf5, geometry)
@@ -179,6 +179,13 @@ def _get_profile_image_projection(proj_func, format):
     return send_file(img_io, mimetype=mime_type)
 
 
+def _get_parameter():
+    if request.method == 'POST':
+        return request.values.get
+    else:
+        return request.args.get
+
+
 @app.before_request
 def start_timer():
     g.start = time.time()
@@ -190,6 +197,7 @@ def log_request(response):
     duration = round(now - g.start, 4)
     host = request.host.split(':', 1)[0]
     args = dict(request.args)
+    values = dict(request.values)
 
     log_params = [
         ('method', request.method, 'magenta'),
@@ -197,7 +205,8 @@ def log_request(response):
         ('status', response.status_code, 'yellow'),
         ('duration', duration, 'green'),
         ('host', host, 'red'),
-        ('params', args, 'blue')
+        ('params', args, 'blue'),
+        ('values', values, 'blue')
     ]
 
     parts = []
