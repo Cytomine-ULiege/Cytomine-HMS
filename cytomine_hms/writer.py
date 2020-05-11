@@ -91,13 +91,15 @@ def create_hdf5(uploaded_file, image, slices, cf, n_workers=0, tile_size=512, n_
 
     def get_tile(tile_info):
         host = tile_info['slice'].imageServerUrl
+        top_left_x = tile_info['X'] * tile_size
+        top_left_y = image.height - (tile_info['Y'] * tile_size)
         parameters = {
             "fif": tile_info['slice'].path,
             "mimeType": tile_info['slice'].mime,
-            "topLeftX": tile_info['X'] * TILE_SIZE,
-            "topLeftY": image.height - (tile_info['Y'] * TILE_SIZE),
-            "width": TILE_SIZE,
-            "height": TILE_SIZE,
+            "topLeftX": top_left_x,
+            "topLeftY": top_left_y,
+            "width": min(tile_size, image.width - top_left_x),
+            "height": min(tile_size, top_left_y),
             "imageWidth": image.width,
             "imageHeight": image.height,
             "bits": bpc,
