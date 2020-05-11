@@ -107,8 +107,11 @@ def create_hdf5(uploaded_file, image, slices, cf, n_workers=0, tile_size=512, n_
         url = "{}/slice/crop.png".format(host)
         response = requests.get(url, parameters)
         tile = np.asarray(Image.open(BytesIO(response.content)))
-        # end = time.time()
-        # print(end - start)
+
+        # If a RGB image is received, use mean of channels as grayscale image
+        if tile.ndim == 3:
+            tile = np.mean(tile, axis=-1)
+
         return tile
 
     def writer_worker(_out, _error):
