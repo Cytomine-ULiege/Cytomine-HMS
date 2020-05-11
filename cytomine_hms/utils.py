@@ -17,6 +17,8 @@
 import numpy as np
 import json
 
+from cytomine.models import Model
+
 
 class NumpyEncoder(json.JSONEncoder):
     """ Special json encoder for numpy types """
@@ -32,3 +34,16 @@ class NumpyEncoder(json.JSONEncoder):
         elif isinstance(obj, (np.ndarray,)):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
+
+
+class CompanionFile(Model):
+    def __init__(self, uploaded_file_id=None, image_id=None, original_filename=None, filename=None, type=None,
+                 progress=None, **attributes):
+        super(CompanionFile, self).__init__()
+        self.uploadedFile = uploaded_file_id
+        self.image = image_id
+        self.originalFilename = original_filename
+        self.filename = filename
+        self.type = type
+        self.progress = progress
+        self.populate(attributes)

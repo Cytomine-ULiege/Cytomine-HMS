@@ -15,15 +15,12 @@
 # * limitations under the License.
 
 import json
-import logging
-import time
 from io import BytesIO
 from threading import Thread
 
 import h5py
 import numpy as np
 from PIL import Image
-from colors import colors
 from cytomine import Cytomine
 from cytomine.models import UploadedFile, AbstractImage, AbstractSliceCollection
 from shapely import wkt
@@ -32,39 +29,51 @@ from shapely.geometry import Point
 from .writer import create_hdf5
 from .reader import prepare_geometry, prepare_slices, get_mask, extract_profile, get_cartesian_indexes, \
     get_projection, get_bounds
-from .utils import NumpyEncoder
-from flask import Flask, abort, request, send_file, g
+from .utils import NumpyEncoder, CompanionFile
+from flask import abort, request, send_file, g, Blueprint, current_app
 
-app = Flask(__name__)
-app.config.from_object('cytomine-hms.config.Config')
-app.logger.setLevel(logging.INFO)
+api = Blueprint('api', __name__)
 
 
-@app.route('/')
+def get_core_connection():
+    if 'cytomine' not in g:
+        g.cytomine = Cytomine.connect(
+            current_app.config['CYTOMINE_HOST'],
+            current_app.config['CYTOMINE_PUBLIC_KEY'],
+            current_app.config['CYTOMINE_PRIVATE_KEY']
+        )
+    return g.cytomine
+
+
+@api.route('/')
 def hello_world():
     return 'Hello World!'
 
 
-@app.route('/hdf5.json', methods=['POST'])
+@api.route('/hdf5.json', methods=['GET', 'POST'])
 def make_hdf5():
-    uploaded_file_id = request.form['uploadedFile']
-    image_id = request.form['image']
-    companion_file_id = request.form['companionFile']
+    uploaded_file_id = _get_parameter()('uploadedFile')
+    image_id = _get_parameter()('image')
+    companion_file_id = _get_parameter()('companionFile')
 
-    Cytomine.connect(app.config['CYTOMINE_HOST'], app.config['CYTOMINE_PUBLIC_KEY'], app.config['CYTOMINE_PRIVATE_KEY'])
+    get_core_connection()
     uploaded_file = UploadedFile().fetch(uploaded_file_id)
     image = AbstractImage().fetch(image_id)
     slices = AbstractSliceCollection().fetch_with_filter("abstractimage", image.id)
+    cf = CompanionFile().fetch(companion_file_id)
 
-    n_workers = 4  # TODO
-    thread = Thread(target=create_hdf5, args=(uploaded_file, image, slices, n_workers))
+    n_workers = current_app.config['N_TILE_READER_WORKERS']
+    tile_size = current_app.config['TILE_SIZE']
+    n_written_tiles_to_update = current_app.config['N_WRITTEN_TILES_TO_UPDATE_PROGRESS']
+    thread = Thread(target=create_hdf5, args=(uploaded_file, image, slices, cf, n_workers, tile_size,
+                                              n_written_tiles_to_update))
     thread.daemon = True
     thread.start()
 
     return {'started': True}
 
 
-@app.route('/profile.json', methods=['GET', 'POST'])
+@api.route('/profile.json', methods=['GET', 'POST'])
 def get_profile():
     path = _get_parameter()('fif', type=str)
     geometry = wkt.loads(_get_parameter()('location', type=str))
@@ -97,7 +106,7 @@ def get_profile():
     return json.dumps(response, cls=NumpyEncoder, check_circular=False)
 
 
-@app.route('/profile/projections.json', methods=['GET', 'POST'])
+@api.route('/profile/projections.json', methods=['GET', 'POST'])
 def get_profile_stats():
     path = _get_parameter()('fif', type=str)
     geometry = wkt.loads(_get_parameter()('location', type=str))
@@ -133,17 +142,17 @@ def get_profile_stats():
     return json.dumps(response, cls=NumpyEncoder, check_circular=False)
 
 
-@app.route('/profile/min-projection.<format>', methods=['GET', 'POST'])
+@api.route('/profile/min-projection.<format>', methods=['GET', 'POST'])
 def get_profile_min_projection(format):
     return _get_profile_image_projection(np.min, format)
 
 
-@app.route('/profile/max-projection.<format>', methods=['GET', 'POST'])
+@api.route('/profile/max-projection.<format>', methods=['GET', 'POST'])
 def get_profile_max_projection(format):
     return _get_profile_image_projection(np.max, format)
 
 
-@app.route('/profile/average-projection.<format>', methods=['GET', 'POST'])
+@api.route('/profile/average-projection.<format>', methods=['GET', 'POST'])
 def get_profile_average_projection(format):
     return _get_profile_image_projection(np.mean, format)
 
@@ -184,41 +193,3 @@ def _get_parameter():
         return request.values.get
     else:
         return request.args.get
-
-
-@app.before_request
-def start_timer():
-    g.start = time.time()
-
-
-@app.after_request
-def log_request(response):
-    now = time.time()
-    duration = round(now - g.start, 4)
-    host = request.host.split(':', 1)[0]
-    args = dict(request.args)
-    values = dict(request.values)
-
-    log_params = [
-        ('method', request.method, 'magenta'),
-        ('path', request.path, 'blue'),
-        ('status', response.status_code, 'yellow'),
-        ('duration', duration, 'green'),
-        ('host', host, 'red'),
-        ('params', args, 'blue'),
-        ('values', values, 'blue')
-    ]
-
-    parts = []
-    for name, value, color in log_params:
-        part = colors.color("{}={}".format(name, value), fg=color)
-        parts.append(part)
-    line = " ".join(parts)
-    app.logger.info(line)
-
-    return response
-
-
-if __name__ == '__main__':
-    app.run()
-

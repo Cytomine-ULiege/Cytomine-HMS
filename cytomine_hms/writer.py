@@ -26,7 +26,7 @@ import time
 from PIL import Image
 from cytomine.models import UploadedFile
 
-TILE_SIZE = 512
+DEBUG = False
 
 
 def get_image_dimension(image):
@@ -40,16 +40,18 @@ def get_image_dimension(image):
         return None
 
 
-def create_hdf5(uploaded_file, image, slices , n_workers=0):
-
+def create_hdf5(uploaded_file, image, slices, cf, n_workers=0, tile_size=512, n_written_tiles_to_update=50):
+    image_name = image.originalFilename
     dimension = get_image_dimension(image)
     if not dimension:
-        raise ValueError("Cannot make profile for 2D image")
+        log("{} | ERROR: Cannot make profile for 2D image".format(image_name))
+        uploaded_file.status = uploaded_file.ERROR_CONVERSION
+        retry_update(uploaded_file)
+        return
 
     path = os.path.dirname(uploaded_file.path)
     os.makedirs(path, exist_ok=True)
     hdf5 = h5py.File(uploaded_file.path, 'w')
-    image_name = image.originalFilename
 
     hdf5.create_dataset("width", data=image.width, shape=())
     hdf5.create_dataset("height", data=image.height, shape=())
@@ -58,27 +60,36 @@ def create_hdf5(uploaded_file, image, slices , n_workers=0):
     hdf5.create_dataset("bpc", data=bpc, shape=())
 
     uploaded_file.status = UploadedFile.CONVERTING
-    uploaded_file.update()
+    uploaded_file = retry_update(uploaded_file)
+    cf = retry_update(cf)
 
     dtype = np.uint16 if bpc > 8 else np.uint8
     dataset = hdf5.create_dataset("data", shape=(image.height, image.width, len(slices)), dtype=dtype)
 
-    x_tiles = int(np.ceil(image.width / TILE_SIZE))
-    y_tiles = int(np.ceil(image.height / TILE_SIZE))
+    x_tiles = int(np.ceil(image.width / tile_size))
+    y_tiles = int(np.ceil(image.height / tile_size))
     n_blocks = x_tiles * y_tiles * len(slices)
 
-    def tile_worker(_in, _out):
+    def tile_worker(_in, _out, _error):
         while True:
             if not _out.full():
                 item = _in.get()
                 if item is None:
-                    break
-                _out.put((item, get_tile(item)))
+                    return
+                try:
+                    _out.put((item, get_tile(item)))
+                    log("{} | Read tile {} {} {}".format(image_name, item['X'], item['Y'], item['slice'].channel))
+                except Exception as e:
+                    log("{} | ERROR tile read: {}".format(image_name, item), force=True)
+                    _error.put(e)
+                    return
             else:
-                time.sleep(1)
+                if not _error.empty():
+                    return
+                else:
+                    time.sleep(0.5)
 
     def get_tile(tile_info):
-        # start = time.time()
         host = tile_info['slice'].imageServerUrl
         parameters = {
             "fif": tile_info['slice'].path,
@@ -93,39 +104,53 @@ def create_hdf5(uploaded_file, image, slices , n_workers=0):
         }
         url = "{}/slice/crop.png".format(host)
         response = requests.get(url, parameters)
-        # print(response.url)
         tile = np.asarray(Image.open(BytesIO(response.content)))
         # end = time.time()
         # print(end - start)
         return tile
 
-    def writer_worker(_out):
+    def writer_worker(_out, _error):
         counter = 0
         while True:
-            item = _out.get()
-            if item is None:
-                return
+            if not _out.empty():
+                item = _out.get()
+                if item is None:
+                    return
 
-            counter = counter + 1
-            write_tile(*item)
+                counter = counter + 1
+                try:
+                    write_tile(*item)
 
-            if counter % 30 == 0 or counter == n_blocks:
-                print("{} - Write {}% ({}/{})".format(image_name, (counter/n_blocks*100), counter, n_blocks))
+                    if counter % n_written_tiles_to_update == 0 or counter == n_blocks:
+                        progress = (counter / n_blocks * 100)
+                        cf.progress = int(round(progress))
+                        cf.update()
+                        log("{} | Write {}% ({}/{})".format(image_name, progress, counter, n_blocks),)
+                except Exception as e:
+                    tile_info, _ = item
+                    log("{} | ERROR tile write: {}".format(image_name, tile_info), force=True)
+                    _error.put(e)
+                    return
+            else:
+                if not _error.empty():
+                    return
+                else:
+                    time.sleep(0.5)
 
     def write_tile(tile_info, tile_data):
         height, width = tile_data.shape
-        min_row = tile_info['Y'] * TILE_SIZE
+        min_row = tile_info['Y'] * tile_size
         max_row = min_row + height
-        min_col = tile_info['X'] * TILE_SIZE
+        min_col = tile_info['X'] * tile_size
         max_col = min_col + width
-        # print("Write {}:{} {}:{} {}".format(min_row, max_row, min_col, max_col, tile_info['slice'].rank))
         dataset[min_row:max_row, min_col:max_col, tile_info['slice'].rank] = tile_data
 
     if n_workers <= 0:
         n_workers = os.cpu_count() - 1
 
     read_queue = Queue()
-    write_queue = Queue()
+    write_queue = Queue(512)
+    error_queue = Queue()
     for _slice in slices:
         for x in range(x_tiles):
             for y in range(y_tiles):
@@ -139,11 +164,12 @@ def create_hdf5(uploaded_file, image, slices , n_workers=0):
     for _ in range(n_workers):
         read_queue.put(None)
 
-    read_workers = [Thread(target=tile_worker, args=(read_queue, write_queue)) for _ in range(n_workers)]
+    read_workers = [Thread(target=tile_worker, args=(read_queue, write_queue, error_queue)) for _ in range(n_workers)]
     for rw in read_workers:
         rw.start()
 
-    write_worker = Thread(target=writer_worker, args=(write_queue,))
+    time.sleep(0.2)
+    write_worker = Thread(target=writer_worker, args=(write_queue, error_queue))
     write_worker.start()
 
     for rw in read_workers:
@@ -152,9 +178,29 @@ def create_hdf5(uploaded_file, image, slices , n_workers=0):
     write_queue.put(None)
     write_worker.join()
 
-    if uploaded_file.status == UploadedFile.CONVERTING:
+    uploaded_file = uploaded_file.fetch()
+    cf = cf.fetch()
+    if not error_queue.empty():
+        uploaded_file.status = uploaded_file.ERROR_CONVERSION
+    elif uploaded_file.status == UploadedFile.CONVERTING:
         uploaded_file.status = uploaded_file.CONVERTED
-        uploaded_file.size = os.path.getsize(uploaded_file.path)
-        uploaded_file.update()
+
+    uploaded_file.size = os.path.getsize(uploaded_file.path)
+    retry_update(uploaded_file)
+    retry_update(cf)
 
     hdf5.close()
+
+
+def retry_update(obj, retries=5):
+    updated = obj.update()
+    while not updated and retries > 0:
+        updated = obj.update()
+        retries = retries - 1
+        time.sleep(1)
+    return updated
+
+
+def log(content, force=False):
+    if DEBUG or force:
+        print(content)
