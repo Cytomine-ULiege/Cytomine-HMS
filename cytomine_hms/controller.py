@@ -173,7 +173,7 @@ def _get_profile_image_projection(proj_func, format):
     mask = get_mask(hdf5, geometry)
     profile = extract_profile(hdf5, mask, slices)
 
-    projection = get_projection(profile, proj_func).astype(int)
+    projection = get_projection(profile, proj_func).astype(profile.dtype)
     masked_projection = projection * mask[get_bounds(mask)]
 
     bpc = hdf5['bpc'][()]
