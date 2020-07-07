@@ -85,8 +85,8 @@ def extract_profile(hdf5, mask, slices):
     return hdf5['data'][bounds]
 
 
-def get_projection(profile, proj_func):
-    return proj_func(profile, axis=-1)
+def get_projection(profile, proj_func, axis=-1):
+    return proj_func(profile, axis=axis)
 
 
 def get_cartesian_indexes(hdf5, mask):

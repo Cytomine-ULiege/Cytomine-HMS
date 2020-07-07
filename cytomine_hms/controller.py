@@ -29,7 +29,7 @@ from shapely.geometry import Point
 from .writer import create_hdf5
 from .reader import prepare_geometry, prepare_slices, get_mask, extract_profile, get_cartesian_indexes, \
     get_projection, get_bounds
-from .utils import NumpyEncoder, CompanionFile
+from .utils import NumpyEncoder, CompanionFile, convert_axis
 from flask import abort, request, send_file, g, Blueprint, current_app
 
 api = Blueprint('api', __name__)
@@ -116,6 +116,8 @@ def get_profile_stats():
     min_slice = _get_parameter()('minSlice', None, type=int)
     max_slice = _get_parameter()('maxSlice', None, type=int)
 
+    axis = convert_axis(_get_parameter()('axis', None, type=str))
+
     hdf5 = h5py.File(path, 'r')
     geometry = prepare_geometry(hdf5, geometry)
     slices = prepare_slices(hdf5, min_slice, max_slice)
@@ -125,19 +127,26 @@ def get_profile_stats():
     profile_mask = mask[get_bounds(mask)]
     profile = profile[profile_mask.nonzero()]
 
-    minimums = get_projection(profile, np.min)
-    maximums = get_projection(profile, np.max)
-    averages = get_projection(profile, np.mean)
+    minimums = get_projection(profile, np.min, axis)
+    maximums = get_projection(profile, np.max, axis)
+    averages = get_projection(profile, np.mean, axis)
 
-    X, Y = get_cartesian_indexes(hdf5, mask)
     response = []
-    for x, y, mini, maxi, avg in zip(X, Y, minimums, maximums, averages):
-        response.append({
-            "point": [x, y],
-            "min": mini,
-            "max": maxi,
-            "average": avg
-        })
+    if axis == 0:
+        items = range(*slices)
+        field = _get_parameter()('dimension', 'slice', type=str)
+    else:
+        X, Y = get_cartesian_indexes(hdf5, mask)
+        items = [[x, y] for x, y in zip(X, Y)]
+        field = "point"
+
+    for item, mini, maxi, avg in zip(items, minimums, maximums, averages):
+        d = dict()
+        d[field] = item
+        d["min"] = mini
+        d["max"] = maxi
+        d["average"] = avg
+        response.append(d)
 
     return json.dumps(response, cls=NumpyEncoder, check_circular=False)
 

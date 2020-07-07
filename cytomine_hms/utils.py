@@ -47,3 +47,10 @@ class CompanionFile(Model):
         self.type = type
         self.progress = progress
         self.populate(attributes)
+
+
+def convert_axis(axes):
+    if axes is not None and axes.lower() in ['xy', 'x,y']:
+        return 0
+
+    return 1
