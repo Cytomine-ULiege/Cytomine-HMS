@@ -13,12 +13,12 @@
 # * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # * See the License for the specific language governing permissions and
 # * limitations under the License.
+import os
 
 from setuptools import find_packages, setup
 
 # Package meta-data.
 NAME = 'cytomine_hms'
-VERSION = '1.2.0'
 REQUIRES_PYTHON = '>=3.8.0'
 
 # What packages are required for this module to be executed?
@@ -42,9 +42,17 @@ DEPENDENCY_LINKS = [
     'https://packagecloud.io/cytomine-uliege/Cytomine-python-client/pypi/simple/cytomine-python-client/'
 ]
 
+here = os.path.abspath(os.path.dirname(__file__))
+
+# Load the package's __version__.py module as a dictionary.
+about = {}
+project_slug = NAME.lower().replace("-", "_").replace(" ", "_")
+with open(os.path.join(here, project_slug, '__version__.py')) as f:
+    exec(f.read(), about)
+
 setup(
     name=NAME,
-    version=VERSION,
+    version=about['__version__'],
     packages=find_packages(),
     python_requires=REQUIRES_PYTHON,
     install_requires=REQUIRED,

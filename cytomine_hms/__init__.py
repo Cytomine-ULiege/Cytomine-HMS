@@ -21,6 +21,11 @@ from colors import colors  # noqa (ansicolors)
 from flask import Flask, request, g
 from .controller import api
 
+from .__version__ import (
+    __author__, __copyright__, __description__, __email__,
+    __license__, __title__, __url__, __version__
+)
+
 
 def create_app():
     app = Flask(__name__)
