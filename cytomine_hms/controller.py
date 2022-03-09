@@ -27,7 +27,8 @@ from shapely import wkt
 from shapely.geometry import Point
 
 from .writer import create_hdf5
-from .reader import prepare_geometry, prepare_slices, get_mask, extract_profile, get_cartesian_indexes, \
+from .reader import prepare_geometry, prepare_slices, get_mask, extract_profile, \
+    get_cartesian_indexes, \
     get_projection, get_bounds
 from .utils import NumpyEncoder, CompanionFile, convert_axis
 from flask import abort, request, send_file, g, Blueprint, current_app
@@ -65,8 +66,13 @@ def make_hdf5():
     n_workers = current_app.config['N_TILE_READER_WORKERS']
     tile_size = current_app.config['TILE_SIZE']
     n_written_tiles_to_update = current_app.config['N_WRITTEN_TILES_TO_UPDATE_PROGRESS']
-    thread = Thread(target=create_hdf5, args=(uploaded_file, image, slices, cf, n_workers, tile_size,
-                                              n_written_tiles_to_update))
+    thread = Thread(
+        target=create_hdf5,
+        args=(
+            uploaded_file, image, slices, cf, n_workers, tile_size,
+            n_written_tiles_to_update
+        )
+    )
     thread.daemon = True
     thread.start()
 
@@ -92,7 +98,7 @@ def get_profile():
     profile_mask = mask[get_bounds(mask)]
     profile = profile[profile_mask.nonzero()]
 
-    X, Y = get_cartesian_indexes(hdf5, mask)
+    X, Y = get_cartesian_indexes(hdf5, mask) # noqa
     response = []
     for x, y, data in zip(X, Y, profile):
         response.append({
@@ -136,7 +142,7 @@ def get_profile_stats():
         items = range(*slices)
         field = _get_parameter()('dimension', 'slice', type=str)
     else:
-        X, Y = get_cartesian_indexes(hdf5, mask)
+        X, Y = get_cartesian_indexes(hdf5, mask)  # noqa
         items = [[x, y] for x, y in zip(X, Y)]
         field = "point"
 

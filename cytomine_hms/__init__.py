@@ -17,7 +17,7 @@
 import logging
 import time
 
-from colors import colors
+from colors import colors  # noqa (ansicolors)
 from flask import Flask, request, g
 from .controller import api
 

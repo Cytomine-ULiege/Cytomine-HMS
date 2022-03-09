@@ -37,8 +37,10 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 class CompanionFile(Model):
-    def __init__(self, uploaded_file_id=None, image_id=None, original_filename=None, filename=None, type=None,
-                 progress=None, **attributes):
+    def __init__(
+        self, uploaded_file_id=None, image_id=None, original_filename=None,
+        filename=None, type=None, progress=None, **attributes
+    ):
         super(CompanionFile, self).__init__()
         self.uploadedFile = uploaded_file_id
         self.image = image_id

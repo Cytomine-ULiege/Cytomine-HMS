@@ -1,0 +1,27 @@
+--extra-index-url https://packagecloud.io/cytomine-uliege/Cytomine-python-client/pypi/simple
+
+affine==2.3.0
+ansicolors==1.1.8
+attrs==21.4.0
+certifi==2021.10.8
+charset-normalizer==2.0.12
+click-plugins==1.1.1
+click==8.0.4
+cligj==0.7.2
+Flask==2.0.3
+h5py==3.6.0
+idna==3.3
+itsdangerous==2.1.0
+Jinja2==3.0.3
+MarkupSafe==2.1.0
+numpy==1.22.3
+Pillow==9.0.1
+pip==22.0.4
+pyparsing==3.0.7
+rasterio==1.2.10
+requests==2.27.1
+setuptools==60.9.3
+Shapely==1.8.1.post1
+snuggs==1.4.7
+urllib3==1.26.8
+Werkzeug==2.0.3

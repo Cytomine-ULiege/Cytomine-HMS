@@ -40,7 +40,10 @@ def get_image_dimension(image):
         return None
 
 
-def create_hdf5(uploaded_file, image, slices, cf, n_workers=0, tile_size=512, n_written_tiles_to_update=50):
+def create_hdf5(
+    uploaded_file, image, slices, cf, n_workers=0, tile_size=512,
+    n_written_tiles_to_update=50
+):
     image_name = image.originalFilename
     dimension = get_image_dimension(image)
     if not dimension:
@@ -64,7 +67,9 @@ def create_hdf5(uploaded_file, image, slices, cf, n_workers=0, tile_size=512, n_
     cf = retry_update(cf)
 
     dtype = np.uint16 if bpc > 8 else np.uint8
-    dataset = hdf5.create_dataset("data", shape=(image.height, image.width, len(slices)), dtype=dtype)
+    dataset = hdf5.create_dataset(
+        "data", shape=(image.height, image.width, len(slices)), dtype=dtype
+    )
 
     x_tiles = int(np.ceil(image.width / tile_size))
     y_tiles = int(np.ceil(image.height / tile_size))
@@ -78,9 +83,14 @@ def create_hdf5(uploaded_file, image, slices, cf, n_workers=0, tile_size=512, n_
                     return
                 try:
                     _out.put((item, get_tile(item)))
-                    log("{} | Read tile {} {} {}".format(image_name, item['X'], item['Y'], item['slice'].channel))
+                    log("{} | Read tile {} {} {}".format(
+                        image_name, item['X'], item['Y'], item['slice'].channel
+                    ))
                 except Exception as e:
-                    log("{} | ERROR tile read: {}".format(image_name, item), force=True)
+                    log(
+                        "{} | ERROR tile read: {}".format(image_name, item),
+                        force=True
+                    )
                     _error.put(e)
                     return
             else:
@@ -130,10 +140,15 @@ def create_hdf5(uploaded_file, image, slices, cf, n_workers=0, tile_size=512, n_
                         progress = (counter / n_blocks * 100)
                         cf.progress = int(round(progress))
                         cf.update()
-                        log("{} | Write {}% ({}/{})".format(image_name, progress, counter, n_blocks),)
+                        log("{} | Write {}% ({}/{})".format(
+                            image_name, progress, counter, n_blocks
+                        ),)
                 except Exception as e:
                     tile_info, _ = item
-                    log("{} | ERROR tile write: {}".format(image_name, tile_info), force=True)
+                    log(
+                        "{} | ERROR tile write: {}".format(image_name, tile_info),
+                        force=True
+                    )
                     _error.put(e)
                     return
             else:
@@ -169,7 +184,10 @@ def create_hdf5(uploaded_file, image, slices, cf, n_workers=0, tile_size=512, n_
     for _ in range(n_workers):
         read_queue.put(None)
 
-    read_workers = [Thread(target=tile_worker, args=(read_queue, write_queue, error_queue)) for _ in range(n_workers)]
+    read_workers = [
+        Thread(target=tile_worker, args=(read_queue, write_queue, error_queue))
+        for _ in range(n_workers)
+    ]
     for rw in read_workers:
         rw.start()
 
