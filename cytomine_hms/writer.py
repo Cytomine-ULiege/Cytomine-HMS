@@ -102,27 +102,27 @@ def create_hdf5(
 
     def get_tile(tile_info):
         host = tile_info['slice'].imageServerUrl
+        imagepath = tile_info['slice'].path
+        url = f"{host}/image/{imagepath}/window.png"
         top_left_x = tile_info['X'] * tile_size
-        top_left_y = image.height - (tile_info['Y'] * tile_size)
+        top_left_y = tile_info['Y'] * tile_size
         parameters = {
-            "fif": tile_info['slice'].path,
-            "mimeType": tile_info['slice'].mime,
-            "topLeftX": top_left_x,
-            "topLeftY": top_left_y,
-            "width": min(tile_size, image.width - top_left_x),
-            "height": min(tile_size, top_left_y),
-            "imageWidth": image.width,
-            "imageHeight": image.height,
+            "region": {
+                "left": top_left_x,
+                "top": top_left_y,
+                "width": min(tile_size, image.width - top_left_x),
+                "height": min(tile_size, image.height - top_left_y),
+            },
+            "level": 0,
             "bits": bpc,
+            "colorspace": "GRAY",
+            "channels": tile_info['slice'].channel,
+            "z_slices": tile_info['slice'].zStack,
+            "timepoints": tile_info['slice'].time
         }
-        url = "{}/slice/crop.png".format(host)
-        response = requests.get(url, parameters)
+
+        response = requests.post(url, json=parameters)
         tile = np.asarray(Image.open(BytesIO(response.content)))
-
-        # If a RGB image is received, use mean of channels as grayscale image
-        if tile.ndim == 3:
-            tile = np.mean(tile, axis=-1)
-
         return tile
 
     def writer_worker(_out, _error):
