@@ -66,11 +66,12 @@ def make_hdf5():
     n_workers = current_app.config['N_TILE_READER_WORKERS']
     tile_size = current_app.config['TILE_SIZE']
     n_written_tiles_to_update = current_app.config['N_WRITTEN_TILES_TO_UPDATE_PROGRESS']
+    root = current_app.config['ROOT']
     thread = Thread(
         target=create_hdf5,
         args=(
             uploaded_file, image, slices, cf, n_workers, tile_size,
-            n_written_tiles_to_update
+            n_written_tiles_to_update, root
         )
     )
     thread.daemon = True

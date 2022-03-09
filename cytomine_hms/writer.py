@@ -42,7 +42,7 @@ def get_image_dimension(image):
 
 def create_hdf5(
     uploaded_file, image, slices, cf, n_workers=0, tile_size=512,
-    n_written_tiles_to_update=50
+    n_written_tiles_to_update=50, root=""
 ):
     image_name = image.originalFilename
     dimension = get_image_dimension(image)
@@ -52,9 +52,10 @@ def create_hdf5(
         retry_update(uploaded_file)
         return
 
-    path = os.path.dirname(uploaded_file.path)
-    os.makedirs(path, exist_ok=True)
-    hdf5 = h5py.File(uploaded_file.path, 'w')
+    path = os.path.join(root, uploaded_file.path)
+    dir_path = os.path.dirname(path)
+    os.makedirs(dir_path, exist_ok=True)
+    hdf5 = h5py.File(path, 'w')
 
     hdf5.create_dataset("width", data=image.width, shape=())
     hdf5.create_dataset("height", data=image.height, shape=())
@@ -208,7 +209,7 @@ def create_hdf5(
     elif uploaded_file.status == UploadedFile.CONVERTING:
         uploaded_file.status = uploaded_file.CONVERTED
 
-    uploaded_file.size = os.path.getsize(uploaded_file.path)
+    uploaded_file.size = os.path.getsize(path)
     retry_update(uploaded_file)
     retry_update(cf)
 
