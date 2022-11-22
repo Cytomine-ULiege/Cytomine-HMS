@@ -58,7 +58,7 @@ numpy==1.22.3
     #   snuggs
 opencv-python-headless==4.5.5.64
     # via cytomine-python-client
-pillow==9.0.1
+pillow==9.3.0
     # via
     #   cytomine-hms (setup.py)
     #   cytomine-python-client
