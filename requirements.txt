@@ -14,7 +14,7 @@ attrs==21.4.0
     # via rasterio
 cachecontrol==0.12.10
     # via cytomine-python-client
-certifi==2021.10.8
+certifi==2022.12.7
     # via
     #   rasterio
     #   requests
